@@ -53,8 +53,23 @@
       font-size: 18px;
     }
 
-    #download {
-      font-size: 24px;
+    .download {
+      font-size: 18px;
+      -moz-border-radius: 3px;
+      -moz-transition: none;
+      -webkit-transition: none;
+      background: #0370ea;
+      background: -moz-linear-gradient(top, #008dfd 0, #0370ea 100%);
+      background: -webkit-linear-gradient(top, #008dfd 0, #0370ea 100%);
+      border: 1px solid #076bd2;
+      border-radius: 3px;
+      color: #fff;
+      display: inline-block;
+      font-family: inherit;
+      line-height: 1.3;
+      padding: 5px 12px;
+      text-align: center;
+      text-shadow: 1px 1px 1px #076bd2;
     }
   </style>
   <script type="text/javascript" src="RecordRTC.js"></script>
@@ -76,28 +91,61 @@
       var inner = document.querySelector('.inner');
       var videoFile = !!navigator.mozGetUserMedia ? 'video.gif' : 'video.webm';
 
-      document.querySelector('#record-video').onclick = function() {
-        this.disabled = true;
+      var localStream;
+      var worker;
 
+      init = function() {
         navigator.getUserMedia({
           audio: true,
           video: true
         }, function(stream) {
           videoPreview.src = window.URL.createObjectURL(stream);
+          videoPreview.controls = false;
           videoPreview.play();
+          localStream = stream;
 
-          recordAudio = RecordRTC(stream, {
+        }, function(error) { throw error; });
+      }
+
+      function $(selector) {
+        return document.querySelector(selector) || null;
+      }
+
+      Element.prototype.remove = function() {
+          this.parentElement.removeChild(this);
+      }
+      NodeList.prototype.remove = HTMLCollection.prototype.remove = function() {
+          for(var i = 0, len = this.length; i < len; i++) {
+              if(this[i] && this[i].parentElement) {
+                  this[i].parentElement.removeChild(this[i]);
+              }
+          }
+      }
+
+      document.querySelector('#record-video').onclick = function() {
+        this.disabled = true;
+
+        if($('.download') != null) $('.download').remove();
+
+        if(recordAudio == undefined && recordVideo == undefined) {
+          recordAudio = RecordRTC(localStream, {
             onAudioProcessStarted: function() {
               recordVideo.startRecording();
             }
           });
 
-          recordVideo = RecordRTC(stream, {
+          recordVideo = RecordRTC(localStream, {
             type: videoFile.indexOf('gif') == -1 ? 'video' : 'gif'
           });
 
           recordAudio.startRecording();
-        }, function(error) { throw error;});
+          worker = null;
+        } else {
+          recordAudio.startRecording(function(){
+            recordVideo.startRecording();
+          })
+          worker = null;
+        }
 
         document.querySelector('#stop-recording-video').disabled = false;
       };
@@ -123,8 +171,6 @@
         URL.revokeObjectURL(blob);
         return worker;
       }
-
-      var worker;
 
       function convertStreams(videoBlob, audioBlob) {
         var vab;
@@ -212,14 +258,17 @@
       }
 
       function PostBlob(blob) {
-        inner.appendChild(document.createElement('hr'));
-        var h2 = document.createElement('h2');
+        downloadLink = document.createElement('a');
+        downloadLink.download = 'video.mp4';
+        downloadLink.textContent = 'Descargar';
+        downloadLink.title = 'Descarga';
+        downloadLink.className = 'download';
 
-        h2.innerHTML = '<a href="' + URL.createObjectURL(blob) + '" target="_blank" id="download" download="video.mp4">Descargar</a>';
-        inner.appendChild(h2);
+        $('.controls').appendChild(downloadLink);
 
-        h2.tabIndex = 0;
-        h2.focus();
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.tabIndex = 0;
+        downloadLink.focus();
 
         document.querySelector('#record-video').disabled = false;
       }
@@ -227,6 +276,8 @@
       function log(message) {
         console.info(message);
       }
+
+      init();
     </script>
   </article>
   <script src="ffmpeg_asm.js" async> </script>
